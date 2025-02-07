@@ -1,0 +1,228 @@
+---
+title: "Exploratory Natural Language Processing"
+author: Rebecca Barbanell
+format: 
+  revealjs:
+    incremental: true   
+    smaller: true
+    trasition: fade
+    height: 900
+    theme: sky
+---
+
+<div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; text-align: center;">
+  <h2>Exploring Purpose</h2>
+  <p>Exploratory NLP is being used to identify key attributes of the remaining unaccounted-for cases in Cambodia. The aim of my research is to create a quantifiable data set to answer our research questions outlined in the study design in Appendix D.</p>
+</div>
+
+## Key Attributes
+
+```{r, echo=FALSE}
+
+
+library(readr)
+library(dplyr)
+library(DT)
+library(htmltools)
+
+
+
+score_card <- read_csv("C:/Users/rbarbane/Desktop/DPPA Data/Completion_Documents/Score_Card_5_2_25.csv",show_col_types = FALSE)
+
+
+# Select the first two columns
+score_card <- select(score_card, 1:2)
+
+# Create the datatable with adjusted options
+# Add the title using HTML tags
+htmltools::tags$h3(
+  style = 'text-align: center; color: black; font-size: 32px; font-weight: bold;',
+  'Score Card'
+)
+
+# Create the datatable with a caption
+datatable(
+  score_card, 
+  options = list(
+    dom = 't', 
+    pageLength = 50, 
+    scrollX = TRUE, 
+    scrollY = "600px"
+  ), 
+  class = 'cell-border stripe', 
+  caption = htmltools::tags$caption(
+    style = 'caption-side: bottom; text-align: center; font-size: 14px; color: red;',
+    '*Disclaimer: ', htmltools::em('NLP is not completely 100% accurate on all reports.')
+  )
+)
+
+```
+
+------------------------------------------------------------------------
+
+## Finding Key Terms: Using Regular Expression (NLP)
+
+-   **What is Regular Expression (regex)**
+
+    -   regex is a tool that helps you search for and find specific patterns in text, making it easier to work with large amounts of information.
+
+-   **What is Tokenization**
+
+    -   Splits text into individual words.
+
+-   **Combining Regex and Tokenization**
+
+    -   Custom rules for splitting text.
+
+## Regular Expression (NLP) Hard Code
+
+-   **"TYPE": "r'/b(aircraft\|capture\|airboat\|helicopter\|ground loss\|awol)/b'"**
+    -   **"TYPE"** is the key in where all the matches are stored
+    -   **"r"** raw string bypassing '' as a character and not escape character - ex. "/n" would be treated as a new line character
+    -   **"/b"** is a word boundary, ensuring that only whole word matches are stored.
+    -   <a href="#code-chunk-slide" class="button">Go to Code</a>
+
+------------------------------------------------------------------------
+
+## Code Run Through {#code-chunk-slide}
+
+``` {.python code-line-numbers="true" code-fold="true" out.width="80%"}
+
+
+import chardet  # function that detects file encoding
+import re  # regex package (pattern Finder)
+import nltk  # Natural Language Toolkit for sentence tokenization
+from nltk.tokenize import sent_tokenize
+
+# Download the necessary NLTK data
+nltk.download('punkt')
+
+# Function to read a text file with automatic encoding detection
+def read_text_file(file_path):
+    with open(file_path, 'rb') as file:
+        content = file.read()
+        result = chardet.detect(content)
+        
+        detected_encoding = result['encoding']
+    with open(file_path, 'r', encoding=detected_encoding) as file:
+        return file.read()
+
+# Define Regular Expression (regex) patterns
+patterns = {
+    "INCIDENT": r'[a-z]{3}-\d{4}-[a-z]|incident \d+',  # e.g. sea-####-r, incident ####
+    "REFNO": r'refno\s\d+',  # refno ####
+    "CASE": r'\bcase\s\d{4}\b',  # case ####
+    "COUNTRY": r'\(?\b(kingdom of cambodia|koc|k\.o\.c)\b\)?', #hard code Country of Loss
+    "RANK": r'\b(pfc|lcpl|pvt|capt|1lt|wo1|cw2|sp4|sp5|cpt|ssg|ltjg|pilot|navigator|weapons officer|sar|door gunner)\b', # hard code rank of service members 
+    "TYPE": r'\b(aircraft|capture|airboat|helicopter|ground loss|awol)\b',  # hard code loss incident type 
+    "AIRCRAFT": r'\b(a1e|uh-1f|uh-1b|uh-1h|f-4d|uh-1|ov-10|f-4e|oh-6a|ah-1g|f-100d|hh-53c|f-4|ch-53a)\b',  # hard code loss incident vehicle type
+    "SITE": r'\((cb[-\s]?\d{5}|kh[-\s]?\d{5})\)', # cb ####, kh ####
+    "MISSION": r'\(?\d{2,4}-\d{1}[a-z]{1,2}\)?',  # e.g. ####-#cb, ##-#c, ##-#cb, (##-#c)
+    "ACCESSION": r'\bcilhi\s\d{4}-\d{3}\b|\bcil\s\d{4}-\d{3}\b|\bcil-\d{4}-\d{3}\b',
+    "REPORT": r'[a-z]{2}\d{2}-\d{4}',  # e.g., cs##-####
+    "CORNER": r'\b[news][0-9]{3} [news][0-9]{3}\b',  # pattern for pairs
+    "AREA_TERMS": r'\b(square meters|cubic meters|total|approximately \d+\.\d+ square meters|\d+\.\d+ cubic meters)[.,;:!?]?\b',  # Added pattern for area terms
+    "YEAR_OF_LOSS": r'\b(0?[1-9]|[12][0-9]|3[01])\s(january|february|march|april|may|june|july|august|september|october|november|december)\s(196[0-9]|197[0-9]|1980)\b',
+    "DATE_MISSION": r'(\d{1,2} [a-zA-Z]+) to (\d{1,2} [a-zA-Z]+ \d{4})'
+}
+
+# Load and process the data
+
+file_path = "C:/Users/rbarbane/Desktop/DPPA Data/txt files/txt files/CASE_2003_ESR_08-2CB_042138Z_JUN_09.txt"   
+
+text_data = read_text_file(file_path)
+
+# Convert text to lowercase
+text_data = text_data.lower()
+
+# Tokenize the text into sentences
+sentences = sent_tokenize(text_data)
+
+# Extract data based on patterns
+extracted_data = {}
+for key, pattern in patterns.items():
+    if key == "AREA_TERMS":
+        # Extract sentences containing area terms
+        matching_sentences = [sentence for sentence in sentences if re.search(pattern, sentence, re.IGNORECASE)]
+        extracted_data[key] = matching_sentences
+    else:
+        matches = re.findall(pattern, text_data)
+        extracted_data[key] = list(set(matches))  # Remove duplicates by converting to a set and back to a list
+
+# Print the extracted data
+for key, matches in extracted_data.items():
+    if key == "AREA_TERMS":
+        print(f"{key}:")
+        for sentence in matches:
+            print(f"  {sentence}")
+    else:
+        print(f"{key}: {matches}")
+```
+
+------------------------------------------------------------------------
+
+## NLP Results
+
+### **Incident 2003**
+### Report Year: 2007 
+
+```{r, out.width="80%"}
+
+ex1 <- read_csv("C:/Users/rbarbane/Desktop/DPPA Data/Completion_Documents/CASE_2003_ex1.csv",show_col_types = FALSE)
+
+
+# Create the datatable with a caption
+datatable(
+  ex1, 
+  options = list(
+    dom = 't', 
+    pageLength = 50, 
+    scrollX = TRUE, 
+    scrollY = "600px"
+  ), 
+  class = 'cell-border stripe', 
+  
+  )
+
+
+```
+
+## NLP Results
+
+### **Incident 1727**
+### Report Year: 2000
+
+
+```{r}
+
+ex2 <- read_csv("C:/Users/rbarbane/Desktop/DPPA Data/Completion_Documents/CASE_1727_ex2.csv",show_col_types = FALSE)
+
+
+# Create the datatable with a caption
+datatable(
+  ex2, 
+  options = list(
+    dom = 't', 
+    pageLength = 50, 
+    scrollX = TRUE, 
+    scrollY = "600px"
+  ), 
+  class = 'cell-border stripe', 
+  
+  )
+
+
+```
+
+## Up Next
+* Clean up data spread sheets
+* Cross refrence manual input with NLP output 
+  - Create an accuracy statistic 
+* Adding an attribute
+   - Found artifacts that coorilate with Incident number 
+* Try couple more NLP tricks
+* Start on probability statistics
+
+### Questions?
+
+
